@@ -102,3 +102,6 @@ ENV/
 
 # pycharm's config directory
 .idea/
+
+# dir which contains dataset
+data/
