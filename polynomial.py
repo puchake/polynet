@@ -3,6 +3,8 @@
 
 import argparse
 
+from train_prototype import fit_polynomial
+
 
 def positive_int(value):
     """
@@ -21,7 +23,8 @@ def main():
     args_parser = argparse.ArgumentParser(description="")
     subparsers = args_parser.add_subparsers(
         help="Choose a command which will be executed by the program. Typing -h"
-             " after the command will show further help."
+             " after the command will show further help.",
+        dest="command"
     )
 
     # Create subparser for train command.
@@ -50,7 +53,9 @@ def main():
                                  help="x value for which y will be estimated.")
 
     args = args_parser.parse_args()
-    print(args)
+    if args.command == "train":
+        fit_polynomial(args.path_to_csv, args.polynomial_degree)
+    # TODO: handle estimate command
 
 
 if __name__ == "__main__":
