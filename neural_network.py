@@ -26,6 +26,24 @@ class NeuralNetwork:
         }
         self.grads = {key: np.zeros_like(self.vars[key]) for key in self.vars}
 
+    @classmethod
+    def from_net_vars(cls, net_vars):
+        """
+        Create NN object from existing net variables and return it.
+
+        Args:
+            net_vars (dict): dictionary of existing net variables.
+
+        Returns:
+            NeuralNetwork: NN object which contains variables loaded from the
+                target .npz archive.
+
+        """
+        polynomial_degree = net_vars["bias_1"].shape[0] - 1
+        net = cls(polynomial_degree)
+        net.vars = net_vars
+        return net
+
     def forward_pass(self, placeholders):
         """
         Perform forward pass through the network using given placeholders and

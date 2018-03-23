@@ -6,13 +6,15 @@ import os
 
 import numpy as np
 
+from neural_network import NeuralNetwork
 
-def save_net(net_vars, net_path):
+
+def save_net(net, net_path):
     """
     Save neural net variables dictionary to an .npz archive.
 
     Args:
-        net_vars (dict): dictionary which contains NN variables - np.ndarrays.
+        net (NeuralNetwork): NN object which will be saved.
         net_path (str): path to the .npz archive in which variables will be
             stored.
 
@@ -26,7 +28,7 @@ def save_net(net_vars, net_path):
     dir_path, _ = os.path.split(net_path)
     if dir_path != "" and not os.path.exists(dir_path):
         os.makedirs(dir_path)
-    np.savez(net_path, **net_vars)
+    np.savez(net_path, **net.vars)
 
 
 def load_net(net_path):
@@ -39,8 +41,8 @@ def load_net(net_path):
             loaded.
 
     Returns:
-        dict: collection of NN variables where dictionary key is a variable
-            label and value associated with this key is an numpy array.
+        NeuralNetwork: NN object which contains variables loaded from the target
+            .npz archive.
 
     Raises:
         IOError: If the net_path does not point to any existing file, or this
@@ -56,7 +58,8 @@ def load_net(net_path):
         raise ValueError("Loaded file is a single numpy array instead of npz "
                          "archive.")
     net_vars = {key: net_vars_npz[key] for key in net_vars_npz.files}
-    return net_vars
+    net = NeuralNetwork.from_net_vars(net_vars)
+    return net
 
 
 def load_dataset(csv_path):
