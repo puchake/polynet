@@ -3,7 +3,7 @@
 
 import argparse
 
-from train_prototype import fit_polynomial
+from commands import train, estimate
 
 
 def positive_int(value):
@@ -54,8 +54,11 @@ def main():
 
     args = args_parser.parse_args()
     if args.command == "train":
-        fit_polynomial(args.path_to_csv, args.polynomial_degree)
-    # TODO: handle estimate command
+        coeffs = train(args.path_to_csv, args.polynomial_degree)
+        print(coeffs)
+    elif args.command == "estimate":
+        y = estimate(args.x)
+        print(y)
 
 
 if __name__ == "__main__":
