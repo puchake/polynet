@@ -119,3 +119,22 @@ class NeuralNetwork:
         grad_of_matmul, self.grads["bias_1"] = bias_add_grad(grad_of_coeffs)
         self.grads["weights_1"] = matmul_grad_of_mat_2(placeholders["x_mat"],
                                                        grad_of_matmul)
+
+    def backup(self, backup_net_vars):
+        """
+        Copy current net variables to external dictionary for saving purposes.
+        If the dictionary is empty create new copies in it. Else copy net
+        variables to an already existing places in memory.
+
+        Args:
+            backup_net_vars (dict):
+
+        Returns:
+            None
+
+        """
+        for key in self.vars:
+            if key not in backup_net_vars:
+                backup_net_vars[key] = np.empty_like(self.vars[key])
+            backup_net_vars[key][:] = self.vars[key][:]
+        return backup_net_vars
