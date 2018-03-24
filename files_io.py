@@ -6,60 +6,56 @@ import os
 
 import numpy as np
 
-from neural_network import NeuralNetwork
 
-
-def save_net(net, net_path):
+def save_vars_dict(vars_dict, path):
     """
-    Save neural net variables dictionary to an .npz archive.
+    Save variables dictionary to an .npz archive.
 
     Args:
-        net (NeuralNetwork): NN object which will be saved.
-        net_path (str): path to the .npz archive in which variables will be
+        vars_dict (dict): collection of variables which will be saved.
+        path (str): path to the .npz archive in which variables will be
             stored.
 
     Returns:
         None
 
     Raises:
-        OSError: If directory part of net_path could not be created.
+        OSError: If directory part of path could not be created.
 
     """
-    dir_path, _ = os.path.split(net_path)
+    dir_path, _ = os.path.split(path)
     if dir_path != "" and not os.path.exists(dir_path):
         os.makedirs(dir_path)
-    np.savez(net_path, **net.vars)
+    np.savez(path, **vars_dict)
 
 
-def load_net(net_path):
+def load_vars_dict(path):
     """
-    Load network's variables contained in an .npz archive and return them
-    wrapped in a dictionary.
+    Load variables contained in an .npz archive and return them wrapped in a
+    dictionary.
 
     Args:
-        net_path (str): path to the .npz archive from which variables will be
+        path (str): path to the .npz archive from which variables will be
             loaded.
 
     Returns:
-        NeuralNetwork: NN object which contains variables loaded from the target
-            .npz archive.
+        dict: a dictionary object which contains variables loaded from the
+            target .npz archive.
 
     Raises:
-        IOError: If the net_path does not point to any existing file, or this
-            file can't be read.
+        IOError: If the path does not point to any existing file, or this file
+            can't be read.
         OSError: If the loaded file cannot be interpreted as .npz archive or
             .npy file.
-        ValueError: If the loaded file was single numpy array in .npy format
-            and cannot be converted to a dict of NN's variables.
+        ValueError: If the loaded file was not a dictionary of variables - for
+            example a single .npy file.
 
     """
-    net_vars_npz = np.load(net_path)
-    if isinstance(net_vars_npz, np.ndarray):
-        raise ValueError("Loaded file is a single numpy array instead of npz "
-                         "archive.")
-    net_vars = {key: net_vars_npz[key] for key in net_vars_npz.files}
-    net = NeuralNetwork.from_net_vars(net_vars)
-    return net
+    vars_npz = np.load(path)
+    if not isinstance(vars_npz, np.lib.npyio.NpzFile):
+        raise ValueError("Loaded file is not a dictionary of variables.")
+    vars_dict = {key: vars_npz[key] for key in vars_npz.files}
+    return vars_dict
 
 
 def load_dataset(csv_path):
