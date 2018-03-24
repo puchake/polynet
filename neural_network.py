@@ -47,8 +47,7 @@ class NeuralNetwork:
     def forward_pass(self, placeholders):
         """
         Perform forward pass through the network using given placeholders and
-        return dictionary containing all intermediate values such as calculated
-        coefficients, their average, variance, model loss etc.
+        return dictionary containing calculated coefficients.
 
         Args:
             placeholders (dict): collection of inputs to the network. It has to
@@ -57,11 +56,8 @@ class NeuralNetwork:
                 this network.
 
         Returns:
-            dict: collection of matrices which were calculated during the
-                forward pass. This includes matrix of coefficients, estimated
-                ys, coefficients averages and variances, square loss of
-                estimated ys and sum of the mean square loss and mean variances
-                of coefficients..
+            dict: dictionary which includes only calculated matrix of
+                coefficients.
 
         """
         vals = dict()
@@ -69,6 +65,29 @@ class NeuralNetwork:
             np.matmul(placeholders["x_mat"], self.vars["weights_1"])
             + self.vars["bias_1"]
         )
+        return vals
+
+    def loss_forward_pass(self, placeholders, vals):
+        """
+        Perform loss forward pass on top of the network output using given
+        placeholders. Return dictionary containing all intermediate values such
+        as coefficients average, variance, model loss etc.
+
+        Args:
+            placeholders (dict): collection of inputs to the network. It has to
+                contain matrix of x values, matrix of y values and matrix of
+                powers of x up to the polynomial degree which was used to create
+                this network.
+            vals (dict): dictionary containing coefficients calculated during
+                the forward pass.
+
+        Returns:
+            dict: collection of matrices which were calculated during the loss
+                forward pass. This includes estimated ys, coefficients averages
+                and variances, square loss of estimated ys and sum of the mean
+                square loss and mean variances of coefficients.
+
+        """
         vals["avg_coeffs"] = np.mean(vals["coeffs"], axis=0)
         vals["coeffs_variance"] = np.var(vals["coeffs"], axis=0)
         vals["y_fit_components"] = np.multiply(placeholders["x_powers_mat"],
@@ -92,7 +111,7 @@ class NeuralNetwork:
                 powers of x up to the polynomial degree which was used to create
                 this network.
             vals (dict): collection of intermediate values calculated during the
-                forward pass.
+                forward pass and loss forward pass.
 
         Returns:
             None

@@ -110,6 +110,7 @@ def train(csv_path, polynomial_degree):
     best_coeffs = None
     for i in range(MAX_EPOCHS):
         vals = net.forward_pass(placeholders)
+        vals = net.loss_forward_pass(placeholders, vals)
         if min_loss is None or vals["loss"] < min_loss:
             min_loss = vals["loss"]
             best_coeffs = vals["avg_coeffs"]
@@ -147,11 +148,13 @@ def estimate(x):
     polynomial_degree = net_vars["bias_1"].shape[0] - 1
     net = NeuralNetwork.from_net_vars(net_vars)
     normalization_params = load_vars_dict(NORMALIZATION_PARAMS_PATH)
+    x_powers_mat = np.power(x, range(polynomial_degree + 1))
     x_mat = np.array([[x / normalization_params["x_max"]]], dtype=np.float64)
-    y_mat = np.array([[0.0]])
-    x_powers_mat = np.power(x_mat, range(polynomial_degree + 1))
-    placeholders = {"x_mat": x_mat, "y_mat": y_mat,
-                    "x_powers_mat": x_powers_mat}
+    placeholders = {"x_mat": x_mat}
     vals = net.forward_pass(placeholders)
-    y = vals["y_fit"] * normalization_params["y_max"]
-    return y[0][0]
+    coeffs = denormalize_coeffs(vals["coeffs"], normalization_params["x_max"],
+                                normalization_params["y_max"],
+                                polynomial_degree)
+    print(coeffs)
+    y = np.sum(np.multiply(x_powers_mat, coeffs))
+    return y
