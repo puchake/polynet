@@ -66,3 +66,27 @@ class AdamOptimizer:
                 alfa_t * self.grads_avgs[key]
                 / (np.sqrt(self.grads_variances[key]) + self.epsilon)
             )
+
+    def eliminate_polynomial_degree(self, eliminated_degree):
+        """
+        Delete optimizer parameters associated with NN parameters responsible
+        for calculation of given polynomial degree.
+
+        Args:
+            eliminated_degree (int): degree of the approximated polynomial
+                which will be cleared. For example when this value is 3 then
+                optimizer variables related to NN variables which take part in
+                calculation of coefficient standing next to the x^3 will be
+                deleted.
+
+        Returns:
+            None
+
+        """
+        mask = np.ones_like(self.grads_avgs["bias_1"], dtype=bool)
+        mask[eliminated_degree] = False
+        self.grads_avgs["weights_1"] = self.grads_avgs["weights_1"][:, mask]
+        self.grads_avgs["bias_1"] = self.grads_avgs["bias_1"][mask]
+        self.grads_variances["weights_1"] = (self.grads_variances["weights_1"]
+                                             [:, mask])
+        self.grads_variances["bias_1"] = self.grads_variances["bias_1"][mask]

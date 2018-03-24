@@ -138,3 +138,26 @@ class NeuralNetwork:
                 backup_net_vars[key] = np.empty_like(self.vars[key])
             backup_net_vars[key][:] = self.vars[key][:]
         return backup_net_vars
+
+    def eliminate_polynomial_degree(self, eliminated_degree):
+        """
+        Delete network parameters responsible for calculation of given
+        polynomial degree. It will keep this parameter at 0 in all next
+        iterations given that correct column of x_powers_mat will be cleared
+        too.
+
+        Args:
+            eliminated_degree (int): degree of the approximated polynomial
+                which will be cleared. For example when this value is 3 then
+                coefficient standing next to the x^3 will be deleted.
+
+        Returns:
+            None
+
+        """
+        mask = np.ones_like(self.vars["bias_1"], dtype=bool)
+        mask[eliminated_degree] = False
+        self.vars["weights_1"] = self.vars["weights_1"][:, mask]
+        self.vars["bias_1"] = self.vars["bias_1"][mask]
+        self.grads["weights_1"] = self.grads["weights_1"][:, mask]
+        self.grads["bias_1"] = self.grads["bias_1"][mask]

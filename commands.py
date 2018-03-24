@@ -17,7 +17,7 @@ from adam_optimizer import *
 from neural_network import *
 
 
-HYPER_PARAMS = {"learning_rate": 0.02, "max_epochs": 30000}
+HYPER_PARAMS = {"learning_rate": 0.02, "max_epochs": 50000}
 
 
 def normalize_mat(mat):
@@ -48,9 +48,47 @@ def denormalize_coeffs(coeffs, x_max, y_max, polynomial_degree):
     return coeffs * y_max / np.power(x_max, range(polynomial_degree + 1))
 
 
+COEFF_ELIMINATION_THRESHOLD = 1e-5
+
+
+def try_eliminating_coeffs(placeholders, normalization_params, vals, net,
+                           optimizer, polynomial_degree):
+    """
+
+    Args:
+        placeholders:
+        normalization_params:
+        vals:
+        net:
+        optimizer:
+        polynomial_degree:
+
+    Returns:
+
+    """
+    denormalized_coeffs = denormalize_coeffs(
+        vals["coeffs"], normalization_params["x_max"],
+        normalization_params["y_max"], polynomial_degree
+    )
+    denormalized_coeffs_abs_avg = np.mean(np.abs(denormalized_coeffs), axis=0)
+    while (
+        denormalized_coeffs_abs_avg[polynomial_degree]
+        < COEFF_ELIMINATION_THRESHOLD
+    ):
+        net.eliminate_polynomial_degree(polynomial_degree)
+        optimizer.eliminate_polynomial_degree(polynomial_degree)
+        x_powers_mask = np.ones_like(placeholders["x_powers_mat"][0, :],
+                                     dtype=bool)
+        x_powers_mask[polynomial_degree] = False
+        placeholders["x_powers_mat"] = (placeholders["x_powers_mat"]
+                                        [:, x_powers_mask])
+        polynomial_degree -= 1
+    return polynomial_degree
+
+
 NORMALIZATION_PARAMS_PATH = os.path.join("data", "normalization_params.npz")
 NET_PATH = os.path.join("data", "net.npz")
-MAX_EPOCHS = 30000
+MAX_EPOCHS = 50000
 
 
 def train(csv_path, polynomial_degree):
@@ -76,13 +114,22 @@ def train(csv_path, polynomial_degree):
             min_loss = vals["loss"]
             best_coeffs = vals["avg_coeffs"]
             net.backup(best_net_vars)
+            if min_loss <= 1e-25:
+                break
         net.backward_pass(placeholders, vals)
+        if vals["loss"] < 1e-5:
+            polynomial_degree = try_eliminating_coeffs(
+                placeholders, normalization_params, vals, net, optimizer,
+                polynomial_degree
+            )
+            best_net_vars = {}
         optimizer.perform_update(net)
         if i % 1000 == 0:
             print(i, vals["loss"], vals["avg_coeffs"], vals["coeffs_variance"])
     save_vars_dict(best_net_vars, NET_PATH)
-    coeffs = denormalize_coeffs(vals["avg_coeffs"], x_max,
+    coeffs = denormalize_coeffs(best_coeffs, x_max,
                                 y_max, polynomial_degree)
+    print(min_loss)
     return list(reversed(coeffs.tolist()))
 
 
