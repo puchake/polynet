@@ -14,9 +14,11 @@ from neural_network import NeuralNetwork
 
 
 # Constant paths to NN variables and normalization parameters saved on the disk.
-# These paths are relative to the place in which main script was launched.
-NORMALIZATION_PARAMS_PATH = os.path.join("data", "normalization_params.npz")
-NET_PATH = os.path.join("data", "net.npz")
+# These paths are relative to the place in which this script is located.
+NORMALIZATION_PARAMS_PATH = os.path.join(
+    os.path.dirname(__file__), "data", "normalization_params.npz"
+)
+NET_PATH = os.path.join(os.path.dirname(__file__), "data", "net.npz")
 
 # Training hyperparameters. These were found through trial and error.
 # Training stops when that many iterations have passed.
