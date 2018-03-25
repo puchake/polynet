@@ -39,38 +39,58 @@ BATCH_SIZE_MULTIPLIER = 40
 
 def normalize_mat(mat):
     """
-    Normalize given matrix of values and bring all of them to max range of
-    <-1, 1>.
+    Normalize given matrix of values and bring all of them to mean = 0 and
+    std = 1.
 
     Args:
         mat (np.ndarray): matrix of values that will be normalized
 
     Returns:
-        (np.ndarray, float): first returned value is given matrix after
-            normalization. Second returned value is maximal absolute value of
-            this matrix before normalization.
+        (np.ndarray, float, float): first returned value is given matrix after
+            normalization. Second returned value is mean and third is standard
+            deviation.
 
     """
-    mat_max = np.max(np.abs(mat))
-    return mat / mat_max, mat_max
+    mat_mean = np.mean(mat, axis=0)
+    mat_std = np.std(mat, axis=0)
+    return (mat - mat_mean) / mat_std, mat_mean, mat_std
 
 
-def denormalize_coeffs(coeffs, x_max, y_max, polynomial_degree):
+def denormalize_coeffs(coeffs, normalization_params, polynomial_degree):
     """
     Denormalize coefficients approximated by the NN to eliminate effect of
     normalization of x and y values. Return denormalized coefficients.
 
     Args:
-        coeffs (np.ndarray): matrix of normalized coefficients calculated by NN.
-        x_max (float): maximal value of x before normalization.
-        y_max (float): maximal value of y before normalization.
+        coeffs (np.ndarray): matrix of normalized coefficients calculated by
+            NN. It has to be 2d.
+        normalization_params (dict): dictionary of normalization params such as
+            x_mean, x_std, y_mean, y_std, x_powers_mean and x_powers_std.
         polynomial_degree (int): degree of the approximated polynomial.
 
     Returns:
         np.ndarray: matrix of denormalized coefficients.
 
     """
-    return coeffs * y_max / np.power(x_max, range(polynomial_degree + 1))
+    # Work backwards from:
+    #
+    # (y - y_mean) / y_std = an * (x_n - x_n_mean) / x_n_std .... + a0
+    #
+    # Multiply both sides by y_std.
+    coeffs = normalization_params["y_std"] * coeffs
+    # Perform divisions of ak / x_k_std.
+    coeffs[:, 1:] /= normalization_params["x_powers_std"][:polynomial_degree]
+    # Move all free constants to a0.
+    coeffs[:, 0] += (
+        normalization_params["y_mean"]
+        - np.sum(
+            np.multiply(
+                normalization_params["x_powers_mean"][:polynomial_degree],
+                coeffs[:, 1:]
+            )
+        )
+    )
+    return coeffs
 
 
 def try_eliminating_coeffs(normalization_params, vals, net,
@@ -84,8 +104,8 @@ def try_eliminating_coeffs(normalization_params, vals, net,
     new polynomial after elimination.
 
     Args:
-        normalization_params (dict): dictionary which contains maximal x and y
-            values.
+        normalization_params (dict): dictionary of normalization params such as
+            x_mean, x_std, y_mean, y_std, x_powers_mean and x_powers_std.
         vals (dict): collection of values such as coefficients averages etc.
             computed during NN full forward pass.
         net (NeuralNetwork): NN object which approximates the polynomial.
@@ -99,8 +119,7 @@ def try_eliminating_coeffs(normalization_params, vals, net,
 
     """
     denormalized_coeffs = denormalize_coeffs(
-        vals["coeffs"], normalization_params["x_max"],
-        normalization_params["y_max"], polynomial_degree
+        vals["coeffs"], normalization_params, polynomial_degree
     )
     denormalized_coeffs_abs_avg = np.mean(np.abs(denormalized_coeffs), axis=0)
 
@@ -153,12 +172,21 @@ def train(csv_path, polynomial_degree):
 
     """
     x_mat, y_mat = load_dataset(csv_path)
-    x_mat, x_max = normalize_mat(x_mat)
-    y_mat, y_max = normalize_mat(y_mat)
     x_powers_mat = np.power(x_mat, range(polynomial_degree + 1))
 
-    # Save maximal x and y values as they will be needed during estimation.
-    normalization_params = {"x_max": x_max, "y_max": y_max}
+    # Normalize only x^1 up to x^n because x^0 is always 1.
+    x_powers_mat[:, 1:], x_powers_mean, x_powers_std = normalize_mat(
+        x_powers_mat[:, 1:]
+    )
+
+    x_mat, x_mean, x_std = normalize_mat(x_mat)
+    y_mat, y_mean, y_std = normalize_mat(y_mat)
+
+    # Collect normalization parameters in a dict as they will be needed in
+    # estimation.
+    normalization_params = {"x_mean": x_mean, "x_std": x_std, "y_mean": y_mean,
+                            "y_std": y_std, "x_powers_mean": x_powers_mean,
+                            "x_powers_std": x_powers_std}
     save_vars_dict(normalization_params, NORMALIZATION_PARAMS_PATH)
 
     net = NeuralNetwork(polynomial_degree)
@@ -207,9 +235,9 @@ def train(csv_path, polynomial_degree):
 
         optimizer.perform_update(net)
     save_vars_dict(best_net_vars, NET_PATH)
-    coeffs = denormalize_coeffs(best_coeffs, x_max,
-                                y_max, polynomial_degree)
-    return list(reversed(coeffs.tolist()))
+    coeffs = denormalize_coeffs(best_coeffs[np.newaxis, :],
+                                normalization_params, polynomial_degree)
+    return list(reversed(coeffs[0].tolist()))
 
 
 def estimate(x):
@@ -233,12 +261,13 @@ def estimate(x):
 
     # Normalize input to NN as it was not trained to handle raw x values and
     # unnormalized x might skew the output coefficients.
-    x_mat = np.array([[x / normalization_params["x_max"]]], dtype=np.float64)
+    x_mat = np.array(
+        [(x - normalization_params["x_mean"]) / normalization_params["x_std"]]
+    )
 
     placeholders = {"x_mat": x_mat}
     vals = net.forward_pass(placeholders)
-    coeffs = denormalize_coeffs(vals["coeffs"], normalization_params["x_max"],
-                                normalization_params["y_max"],
+    coeffs = denormalize_coeffs(vals["coeffs"], normalization_params,
                                 polynomial_degree)
     y = np.sum(np.multiply(x_powers_mat, coeffs))
     return y
