@@ -20,7 +20,7 @@ NET_PATH = os.path.join("data", "net.npz")
 
 # Training hyperparameters. These were found through trial and error.
 # Training stops when that many iterations have passed.
-MAX_ITERATIONS = 25000
+MAX_ITERATIONS = 50000
 # During the training there are attempts made to eliminate some coefficients of
 # the modeled polynomial. These attempts are made after current loss falls
 # below ELIMINATION_ATTEMPT_THRESHOLD value.
@@ -31,6 +31,10 @@ ELIMINATION_ATTEMPT_THRESHOLD = 1e-5
 COEFF_ELIMINATION_THRESHOLD = 1e-5
 # Training stops when this or smaller loss is reached.
 TARGET_LOSS = 1e-25
+# Multiplier applied to current polynomial degree to get size of the batch that
+# will be used in learning. For example if we are currently trying to
+# approximate 5th degree polynomial then we will use batches with 200 examples.
+BATCH_SIZE_MULTIPLIER = 40
 
 
 def normalize_mat(mat):
@@ -69,7 +73,7 @@ def denormalize_coeffs(coeffs, x_max, y_max, polynomial_degree):
     return coeffs * y_max / np.power(x_max, range(polynomial_degree + 1))
 
 
-def try_eliminating_coeffs(placeholders, normalization_params, vals, net,
+def try_eliminating_coeffs(normalization_params, vals, net,
                            optimizer, polynomial_degree):
     """
     Try to eliminate some coefficients from approximated polynomial.
@@ -80,8 +84,6 @@ def try_eliminating_coeffs(placeholders, normalization_params, vals, net,
     new polynomial after elimination.
 
     Args:
-        placeholders (dict): collection of inputs to the NN which includes
-            matrix of x values, matrix of y values and matrix of x powers.
         normalization_params (dict): dictionary which contains maximal x and y
             values.
         vals (dict): collection of values such as coefficients averages etc.
@@ -112,17 +114,27 @@ def try_eliminating_coeffs(placeholders, normalization_params, vals, net,
     ):
         net.eliminate_polynomial_degree(polynomial_degree)
         optimizer.eliminate_polynomial_degree(polynomial_degree)
-
-        # Delete x powers corresponding to the eliminated coefficient from the
-        # x_powers_mat inside the placeholders dict.
-        x_powers_mask = np.ones_like(placeholders["x_powers_mat"][0, :],
-                                     dtype=bool)
-        x_powers_mask[polynomial_degree] = False
-        placeholders["x_powers_mat"] = (placeholders["x_powers_mat"]
-                                        [:, x_powers_mask])
-
         polynomial_degree -= 1
     return polynomial_degree
+
+
+def shuffle_matrices(mats):
+    """
+    Shuffle given matrices along its first dimensions. All matrices are
+    shuffled in the same way in one function call.
+
+    Args:
+        mats (list): list of np.ndarray objects - matricies - which will
+            be shuffled.
+
+    Returns:
+        None
+
+    """
+    random_state = np.random.get_state()
+    for mat in mats:
+        np.random.set_state(random_state)
+        np.random.shuffle(mat)
 
 
 def train(csv_path, polynomial_degree):
@@ -144,8 +156,6 @@ def train(csv_path, polynomial_degree):
     x_mat, x_max = normalize_mat(x_mat)
     y_mat, y_max = normalize_mat(y_mat)
     x_powers_mat = np.power(x_mat, range(polynomial_degree + 1))
-    placeholders = {"x_mat": x_mat, "y_mat": y_mat,
-                    "x_powers_mat": x_powers_mat}
 
     # Save maximal x and y values as they will be needed during estimation.
     normalization_params = {"x_max": x_max, "y_max": y_max}
@@ -156,7 +166,22 @@ def train(csv_path, polynomial_degree):
     min_loss = None
     best_net_vars = {}
     best_coeffs = None
+    batch_i = 0
+    num_examples = x_mat.shape[0]
     for i in range(MAX_ITERATIONS):
+
+        # Create minibatch of examples and advance batch iterator.
+        batch_size = polynomial_degree * BATCH_SIZE_MULTIPLIER
+        placeholders = {"x_mat": x_mat[batch_i:batch_i + batch_size],
+                        "y_mat": y_mat[batch_i:batch_i + batch_size],
+                        "x_powers_mat": x_powers_mat[batch_i:
+                                                     batch_i + batch_size,
+                                                     :polynomial_degree + 1]}
+        batch_i += batch_size
+        if batch_i >= num_examples:
+            batch_i = 0
+            shuffle_matrices([x_mat, y_mat, x_powers_mat])
+
         vals = net.forward_pass(placeholders)
         vals = net.loss_forward_pass(placeholders, vals)
 
@@ -175,8 +200,7 @@ def train(csv_path, polynomial_degree):
         # ones of them are truly unnecessary.
         if vals["loss"] < ELIMINATION_ATTEMPT_THRESHOLD:
             polynomial_degree = try_eliminating_coeffs(
-                placeholders, normalization_params, vals, net, optimizer,
-                polynomial_degree
+                normalization_params, vals, net, optimizer, polynomial_degree
             )
             best_net_vars = {}
             net.backup(best_net_vars)
