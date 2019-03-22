@@ -2,6 +2,8 @@
 
 This application is a neural network based tool that is designed to find polynomial which fits some collection of points.
 
+**NOTE**: usage of neural networks here is quite pointless, but it was work interview assignment rather than my own idea.
+
 ## Network's architecture
 
 NN input is a single x value (per example). Its output is a vector of coefficients of the approximated polynomial. 
